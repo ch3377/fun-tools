@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FunTookit</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#FFF5EE;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;padding:32px 16px;color:#333}
+h1{font-size:2.2em;margin-bottom:6px}
+.subtitle{font-size:1.1em;color:#888;margin-bottom:32px}
+.grid{display:flex;flex-wrap:wrap;justify-content:center;gap:24px;max-width:800px;width:100%}
+.card{background:#fff;border-radius:20px;padding:32px 24px;box-shadow:0 4px 20px rgba(0,0,0,.08);
+  text-align:center;width:280px;cursor:pointer;transition:transform .2s,box-shadow .2s;
+  text-decoration:none;color:#333;border:3px solid transparent}
+.card:hover{transform:translateY(-6px);box-shadow:0 8px 30px rgba(0,0,0,.12)}
+.card-icon{font-size:3.5em;margin-bottom:12px}
+.card-name{font-size:1.4em;font-weight:bold;margin-bottom:8px}
+.card-desc{font-size:.95em;color:#666;line-height:1.4}
+.card-tag{display:inline-block;margin-top:12px;padding:4px 14px;border-radius:20px;
+  color:#fff;font-size:.8em;font-weight:bold}
+</style>
+</head>
+<body>
+
+<h1>FunTookit</h1>
+<p class="subtitle">Your cute daily toolkit</p>
+
+<div class="grid">
+  {% for tool in tools %}
+  <a class="card" href="/{{ tool.id }}" style="border-color:{{ tool.color }}20">
+    <div class="card-icon">{{ tool.icon }}</div>
+    <div class="card-name">{{ tool.name }}</div>
+    <div class="card-desc">{{ tool.desc }}</div>
+    <span class="card-tag" style="background:{{ tool.color }}">Open</span>
+  </a>
+  {% endfor %}
+</div>
+
+</body>
+</html>

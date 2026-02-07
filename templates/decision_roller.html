@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Decision Roller - FunTookit</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#FFF5EE;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;padding:24px 16px;color:#333}
+.back{position:fixed;top:16px;left:16px;text-decoration:none;color:#FF9EB5;font-weight:bold;
+  font-size:1.1em;padding:8px 16px;background:#fff;border-radius:12px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);transition:transform .15s}
+.back:hover{transform:scale(1.05)}
+h1{font-size:1.8em;margin-bottom:4px;color:#FF6B8A}
+.subtitle{color:#999;margin-bottom:20px;font-size:.95em}
+.screen{display:none;flex-direction:column;align-items:center;width:100%;max-width:500px}
+.screen.active{display:flex}
+.panel{background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 4px 20px rgba(0,0,0,.08);
+  text-align:center;width:100%;margin-bottom:16px}
+
+/* Input screen */
+.input-row{display:flex;gap:8px;margin-bottom:16px}
+.input-row input{flex:1;padding:10px 16px;font-size:1em;border:2px solid #eee;border-radius:12px}
+.input-row input:focus{border-color:#FF9EB5;outline:none}
+.btn{padding:10px 24px;font-size:1em;border:none;border-radius:12px;cursor:pointer;
+  font-weight:bold;transition:transform .1s,box-shadow .15s}
+.btn:hover{transform:scale(1.05)}
+.btn:active{transform:scale(.97)}
+.btn-pink{background:#FF9EB5;color:#fff}
+.btn-gray{background:#ddd;color:#666}
+.btn-add{background:#FF9EB5;color:#fff;padding:10px 18px;border-radius:12px;font-size:1.1em;
+  border:none;cursor:pointer;font-weight:bold}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0;min-height:40px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:20px;
+  font-weight:bold;font-size:.95em;color:#fff;animation:chipIn .25s ease-out}
+.chip .x{cursor:pointer;opacity:.7;font-size:1.1em;margin-left:2px}
+.chip .x:hover{opacity:1}
+@keyframes chipIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.hint{color:#bbb;font-size:.9em;margin-top:4px}
+
+/* Wheel screen */
+.wheel-wrap{position:relative;display:inline-block;margin:16px 0}
+canvas{display:block}
+.pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);
+  width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;
+  border-top:28px solid #FF6B8A;filter:drop-shadow(0 2px 4px rgba(0,0,0,.2));z-index:2}
+
+/* Result */
+.result-text{font-size:1.8em;font-weight:bold;margin:16px 0;animation:popIn .4s ease-out}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.confetti-wrap{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999}
+</style>
+</head>
+<body>
+
+<a class="back" href="/">&larr; Home</a>
+<h1>Decision Roller</h1>
+<p class="subtitle">Add choices, spin the wheel, let fate decide!</p>
+
+<!-- INPUT SCREEN -->
+<div id="s-input" class="screen active">
+  <div class="panel">
+    <div class="input-row">
+      <input id="choiceInput" placeholder="Type a choice..." maxlength="30"
+             onkeydown="if(event.key==='Enter')addChoice()">
+      <button class="btn-add" onclick="addChoice()">+</button>
+    </div>
+    <div class="chips" id="chipList"></div>
+    <p class="hint" id="hint">Add at least 2 choices to spin</p>
+    <button class="btn btn-pink" id="btnSpin" onclick="goToWheel()" disabled
+            style="margin-top:12px;padding:14px 40px;font-size:1.15em">
+      Spin!
+    </button>
+  </div>
+</div>
+
+<!-- WHEEL SCREEN -->
+<div id="s-wheel" class="screen">
+  <div class="panel" style="padding:20px 16px">
+    <div class="wheel-wrap">
+      <div class="pointer"></div>
+      <canvas id="wheelCanvas" width="320" height="320"></canvas>
+    </div>
+    <div id="resultArea" style="display:none">
+      <div class="result-text" id="resultText"></div>
+      <button class="btn btn-pink" onclick="spinAgain()" style="margin:4px 8px">Spin Again</button>
+      <button class="btn btn-gray" onclick="backToInput()" style="margin:4px 8px">Edit Choices</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confettiCanvas" class="confetti-wrap"></canvas>
+
+<script>
+// --- State ---
+const COLORS = [
+  '#FF9EB5','#78C8A0','#F4C87C','#7EB8E0','#C9A0DC',
+  '#FFB74D','#4DB6AC','#E57373','#81C784','#BA68C8',
+  '#64B5F6','#FF8A65','#AED581','#4FC3F7','#F06292'
+];
+let choices = [];
+
+// --- Input ---
+function addChoice() {
+  const inp = document.getElementById('choiceInput');
+  const val = inp.value.trim();
+  if (!val || choices.length >= 20) return;
+  if (choices.some(c => c.label.toLowerCase() === val.toLowerCase())) { inp.value = ''; return; }
+  choices.push({ label: val, color: COLORS[choices.length % COLORS.length] });
+  inp.value = '';
+  renderChips();
+}
+
+function removeChoice(idx) {
+  choices.splice(idx, 1);
+  // Re-assign colors
+  choices.forEach((c, i) => c.color = COLORS[i % COLORS.length]);
+  renderChips();
+}
+
+function renderChips() {
+  const list = document.getElementById('chipList');
+  list.innerHTML = '';
+  choices.forEach((c, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.style.background = c.color;
+    chip.innerHTML = `${esc(c.label)} <span class="x" onclick="removeChoice(${i})">&times;</span>`;
+    list.appendChild(chip);
+  });
+  document.getElementById('btnSpin').disabled = choices.length < 2;
+  document.getElementById('hint').textContent =
+    choices.length < 2 ? 'Add at least 2 choices to spin' : `${choices.length} choices ready!`;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// --- Wheel ---
+let canvas, ctx, wheelRadius, centerX, centerY;
+let currentAngle = 0, spinning = false;
+
+function goToWheel() {
+  showScreen('wheel');
+  canvas = document.getElementById('wheelCanvas');
+  ctx = canvas.getContext('2d');
+  // Responsive canvas size
+  const size = Math.min(360, window.innerWidth - 80);
+  canvas.width = size; canvas.height = size;
+  wheelRadius = size / 2 - 8;
+  centerX = size / 2; centerY = size / 2;
+  document.getElementById('resultArea').style.display = 'none';
+  drawWheel(currentAngle);
+  // Auto-spin after short delay
+  setTimeout(() => spin(), 300);
+}
+
+function drawWheel(angle) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const n = choices.length;
+  const arc = (2 * Math.PI) / n;
+
+  // Draw segments
+  for (let i = 0; i < n; i++) {
+    const startAngle = angle + i * arc;
+    const endAngle = startAngle + arc;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(centerX, centerY, wheelRadius, startAngle, endAngle);
+    ctx.closePath();
+    ctx.fillStyle = choices[i].color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Label
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(startAngle + arc / 2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.min(16, 120 / n + 8)}px 'Segoe UI', sans-serif`;
+    ctx.shadowColor = 'rgba(0,0,0,.3)';
+    ctx.shadowBlur = 3;
+    const maxLen = Math.floor(wheelRadius / 10);
+    let label = choices[i].label;
+    if (label.length > maxLen) label = label.substring(0, maxLen - 1) + '..';
+    ctx.fillText(label, wheelRadius - 14, 5);
+    ctx.restore();
+  }
+
+  // Center circle
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, 18, 0, 2 * Math.PI);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.strokeStyle = '#eee';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function spin() {
+  if (spinning) return;
+  spinning = true;
+  document.getElementById('resultArea').style.display = 'none';
+
+  // Random target: 3-5 full rotations + random offset
+  const totalRotation = (3 + Math.random() * 2) * 2 * Math.PI + Math.random() * 2 * Math.PI;
+  const duration = 4000; // 4 seconds
+  const startAngle = currentAngle;
+  const startTime = performance.now();
+
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function animate(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    const eased = easeOutCubic(t);
+    currentAngle = startAngle + totalRotation * eased;
+    drawWheel(currentAngle);
+
+    if (t < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      spinning = false;
+      // Determine winner: pointer is at top = 3*PI/2 in canvas coords
+      const n = choices.length;
+      const arc = (2 * Math.PI) / n;
+      const norm = ((currentAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const pointerAngle = ((Math.PI * 1.5 - norm) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+      const winnerIdx = Math.floor(pointerAngle / arc) % n;
+      showResult(winnerIdx);
+    }
+  }
+  requestAnimationFrame(animate);
+}
+
+function showResult(idx) {
+  const area = document.getElementById('resultArea');
+  const text = document.getElementById('resultText');
+  text.style.color = choices[idx].color;
+  text.textContent = choices[idx].label + '!';
+  area.style.display = 'block';
+  // Force re-trigger animation
+  text.style.animation = 'none';
+  text.offsetHeight;
+  text.style.animation = '';
+  launchConfetti();
+}
+
+function spinAgain() { spin(); }
+function backToInput() { showScreen('input'); }
+
+// --- Confetti ---
+function launchConfetti() {
+  const c = document.getElementById('confettiCanvas');
+  const ctx2 = c.getContext('2d');
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  const pieces = [];
+  for (let i = 0; i < 80; i++) {
+    pieces.push({
+      x: Math.random() * c.width,
+      y: -20 - Math.random() * 200,
+      w: 6 + Math.random() * 6,
+      h: 10 + Math.random() * 8,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      vx: (Math.random() - 0.5) * 4,
+      vy: 2 + Math.random() * 4,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.2,
+    });
+  }
+  let frame = 0;
+  function draw() {
+    ctx2.clearRect(0, 0, c.width, c.height);
+    let alive = false;
+    pieces.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      p.vy += 0.08;
+      if (p.y < c.height + 50) alive = true;
+      ctx2.save();
+      ctx2.translate(p.x, p.y);
+      ctx2.rotate(p.rot);
+      ctx2.fillStyle = p.color;
+      ctx2.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx2.restore();
+    });
+    frame++;
+    if (alive && frame < 180) requestAnimationFrame(draw);
+    else ctx2.clearRect(0, 0, c.width, c.height);
+  }
+  requestAnimationFrame(draw);
+}
+
+// --- Screen management ---
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+}
+</script>
+</body>
+</html>

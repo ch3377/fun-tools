@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Splitwiser - FunTookit</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#FFF5EE;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;padding:24px 16px;color:#333}
+.back{position:fixed;top:16px;left:16px;text-decoration:none;color:#78C8A0;font-weight:bold;
+  font-size:1.1em;padding:8px 16px;background:#fff;border-radius:12px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);transition:transform .15s}
+.back:hover{transform:scale(1.05)}
+h1{font-size:1.8em;margin-bottom:4px;color:#4AA07A}
+.subtitle{color:#999;margin-bottom:20px;font-size:.95em}
+.screen{display:none;flex-direction:column;align-items:center;width:100%;max-width:520px}
+.screen.active{display:flex}
+.panel{background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 4px 20px rgba(0,0,0,.08);
+  text-align:center;width:100%;margin-bottom:16px}
+input,select{padding:10px 16px;font-size:1em;border:2px solid #eee;border-radius:12px;width:100%;
+  margin-bottom:10px}
+input:focus{border-color:#78C8A0;outline:none}
+.btn{padding:10px 24px;font-size:1em;border:none;border-radius:12px;cursor:pointer;
+  font-weight:bold;transition:transform .1s,box-shadow .15s;margin:4px}
+.btn:hover{transform:scale(1.05)}
+.btn:active{transform:scale(.97)}
+.btn-green{background:#78C8A0;color:#fff}
+.btn-gray{background:#ddd;color:#666}
+.btn-pink{background:#FF9EB5;color:#fff}
+.btn-sm{padding:6px 14px;font-size:.9em;border-radius:8px}
+.error{color:#e74c3c;font-weight:bold;margin:8px 0;font-size:.9em}
+.mode-tabs{display:flex;gap:0;margin-bottom:20px;border-radius:12px;overflow:hidden;
+  border:2px solid #78C8A0}
+.mode-tab{flex:1;padding:12px 20px;font-weight:bold;cursor:pointer;background:#fff;
+  color:#78C8A0;transition:background .2s,color .2s;border:none;font-size:1em}
+.mode-tab.active{background:#78C8A0;color:#fff}
+label{display:block;text-align:left;font-weight:bold;margin-bottom:4px;font-size:.9em;color:#666}
+
+/* People table */
+.people-table{width:100%;border-collapse:collapse;margin:16px 0}
+.people-table th{background:#f0faf5;padding:8px;font-size:.85em;color:#555;border-radius:4px}
+.people-table td{padding:6px 4px;vertical-align:middle}
+.people-table input{margin-bottom:0;padding:8px 10px;font-size:.9em}
+.remove-btn{background:none;border:none;color:#e74c3c;cursor:pointer;font-size:1.3em;
+  font-weight:bold;padding:4px 8px}
+.remove-btn:hover{transform:scale(1.2)}
+
+/* Results */
+.result-card{background:#f0faf5;border-radius:12px;padding:16px;margin:8px 0;text-align:left}
+.result-card h3{margin-bottom:8px;color:#4AA07A}
+.settlement{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff;
+  border-radius:10px;margin:6px 0;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.settlement .arrow{color:#78C8A0;font-weight:bold;font-size:1.2em}
+.settlement .amount{font-weight:bold;color:#e74c3c;margin-left:auto}
+.adj-row{display:flex;justify-content:space-between;padding:4px 0;font-size:.9em;
+  border-bottom:1px solid #eee}
+.adj-row:last-child{border-bottom:none}
+
+/* Room mode */
+.room-code{font-size:2.2em;font-weight:bold;color:#4AA07A;letter-spacing:6px;margin:12px 0}
+.member-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
+.member-tag{padding:6px 14px;border-radius:16px;font-size:.9em;font-weight:bold}
+.member-tag.pending{background:#ffeeba;color:#856404}
+.member-tag.done{background:#d4edda;color:#155724}
+</style>
+</head>
+<body>
+
+<a class="back" href="/">&larr; Home</a>
+<h1>Splitwiser</h1>
+<p class="subtitle">Split bills fairly among friends</p>
+
+<!-- MODE SELECT -->
+<div id="s-mode" class="screen active">
+  <div class="panel">
+    <p style="margin-bottom:16px;color:#888">Choose how you want to split:</p>
+    <div class="mode-tabs">
+      <button class="mode-tab active" onclick="selectMode('solo')">Solo Mode</button>
+      <button class="mode-tab" onclick="selectMode('room')">Room Mode</button>
+    </div>
+    <div id="modeDesc" style="color:#888;font-size:.9em;margin-bottom:16px">
+      Enter everyone's info yourself and calculate instantly.
+    </div>
+    <button class="btn btn-green" onclick="startMode()" style="padding:14px 40px;font-size:1.1em">
+      Start
+    </button>
+  </div>
+</div>
+
+<!-- MODE A: SOLO -->
+<div id="s-solo" class="screen">
+  <div class="panel">
+    <h2 style="margin-bottom:16px;color:#4AA07A">Solo Bill Split</h2>
+    <table class="people-table" id="soloTable">
+      <thead>
+        <tr><th>Name</th><th>Personal Cost</th><th>Amount Paid</th><th></th></tr>
+      </thead>
+      <tbody id="soloBody"></tbody>
+    </table>
+    <button class="btn btn-gray btn-sm" onclick="soloAddPerson()">+ Add Person</button>
+    <div class="error" id="soloError"></div>
+    <div style="margin-top:16px">
+      <button class="btn btn-green" onclick="soloCalculate()">Calculate</button>
+      <button class="btn btn-gray" onclick="showScreen('mode')">Back</button>
+    </div>
+  </div>
+  <div id="soloResult"></div>
+</div>
+
+<!-- MODE B: ROOM - CREATE/JOIN -->
+<div id="s-room-lobby" class="screen">
+  <div class="panel">
+    <h2 style="margin-bottom:16px;color:#4AA07A">Room Mode</h2>
+    <label>Your Name</label>
+    <input id="roomName" placeholder="Your name" maxlength="20">
+    <button class="btn btn-green" onclick="roomCreate()" style="margin-bottom:12px">Create Room</button>
+    <hr style="margin:16px 0;border:none;border-top:1px solid #eee">
+    <label>Or join with a code</label>
+    <input id="roomCode" placeholder="Room code" maxlength="4" style="text-transform:uppercase">
+    <button class="btn btn-green" onclick="roomJoin()">Join Room</button>
+    <div class="error" id="roomError"></div>
+    <div style="margin-top:12px">
+      <button class="btn btn-gray btn-sm" onclick="showScreen('mode')">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODE B: ROOM - IN ROOM -->
+<div id="s-room" class="screen">
+  <div class="panel">
+    <h2 style="margin-bottom:8px;color:#4AA07A" id="roomTitle">Room</h2>
+    <div class="room-code" id="roomDispCode"></div>
+    <div class="member-list" id="memberList"></div>
+    <hr style="margin:16px 0;border:none;border-top:1px solid #eee">
+    <div id="roomInputArea">
+      <label>Your Personal Cost</label>
+      <input id="roomPersonalCost" type="number" step="0.01" min="0" placeholder="What you ordered">
+      <label>Amount You Paid</label>
+      <input id="roomAmountPaid" type="number" step="0.01" min="0" placeholder="What you actually paid">
+      <button class="btn btn-green" onclick="roomSubmit()" id="btnRoomSubmit">Submit My Data</button>
+    </div>
+    <div id="roomSubmittedMsg" style="display:none;color:#78C8A0;font-weight:bold;margin:12px 0">
+      Your data is submitted! Waiting for others...
+    </div>
+    <div id="hostCalcArea" style="display:none;margin-top:12px">
+      <button class="btn btn-pink" onclick="roomCalculate()">Calculate for Everyone</button>
+    </div>
+    <div class="error" id="roomInError"></div>
+  </div>
+  <div id="roomResult"></div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+// ===== Shared =====
+let currentMode = 'solo';
+let isHost = false;
+let myRoomCode = '';
+
+function selectMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('modeDesc').textContent = mode === 'solo'
+    ? "Enter everyone's info yourself and calculate instantly."
+    : "Create a room. Friends join with the code and submit their own info.";
+}
+
+function startMode() {
+  if (currentMode === 'solo') {
+    soloInit();
+    showScreen('solo');
+  } else {
+    showScreen('room-lobby');
+  }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+}
+
+// ===== MODE A: Solo =====
+let soloPersonId = 0;
+
+function soloInit() {
+  document.getElementById('soloBody').innerHTML = '';
+  document.getElementById('soloResult').innerHTML = '';
+  document.getElementById('soloError').textContent = '';
+  soloPersonId = 0;
+  soloAddPerson();
+  soloAddPerson();
+}
+
+function soloAddPerson() {
+  soloPersonId++;
+  const tr = document.createElement('tr');
+  tr.dataset.id = soloPersonId;
+  tr.innerHTML = `
+    <td><input placeholder="Name" class="p-name" maxlength="20"></td>
+    <td><input type="number" step="0.01" min="0" placeholder="0.00" class="p-cost"></td>
+    <td><input type="number" step="0.01" min="0" placeholder="0.00" class="p-paid"></td>
+    <td><button class="remove-btn" onclick="soloRemove(this)">&times;</button></td>`;
+  document.getElementById('soloBody').appendChild(tr);
+}
+
+function soloRemove(btn) {
+  const tbody = document.getElementById('soloBody');
+  if (tbody.children.length <= 2) return;
+  btn.closest('tr').remove();
+}
+
+function soloCalculate() {
+  const errEl = document.getElementById('soloError');
+  errEl.textContent = '';
+
+  const rows = document.querySelectorAll('#soloBody tr');
+  const people = [];
+  for (const row of rows) {
+    const name = row.querySelector('.p-name').value.trim();
+    const cost = parseFloat(row.querySelector('.p-cost').value) || 0;
+    const paid = parseFloat(row.querySelector('.p-paid').value) || 0;
+    if (!name) { errEl.textContent = 'All people need a name'; return; }
+    people.push({ name, personal_cost: cost, amount_paid: paid });
+  }
+  if (people.length < 2) { errEl.textContent = 'Need at least 2 people'; return; }
+
+  const totalCost = people.reduce((s, p) => s + p.amount_paid, 0);
+  if (totalCost <= 0) { errEl.textContent = 'Total paid must be positive'; return; }
+
+  const result = calculateSettlements(totalCost, people);
+  renderResult('soloResult', result);
+}
+
+// ===== Bill Split Algorithm (client-side, mirrors server) =====
+function calculateSettlements(totalCost, people) {
+  const rawSum = people.reduce((s, p) => s + p.personal_cost, 0);
+  let adjusted;
+  if (rawSum === 0) {
+    const share = totalCost / people.length;
+    adjusted = people.map(p => ({
+      name: p.name,
+      adjusted_cost: Math.round(share * 100) / 100,
+      amount_paid: p.amount_paid,
+      balance: Math.round((p.amount_paid - share) * 100) / 100,
+    }));
+  } else {
+    const ratio = totalCost / rawSum;
+    adjusted = people.map(p => {
+      const adj = Math.round(p.personal_cost * ratio * 100) / 100;
+      return {
+        name: p.name,
+        adjusted_cost: adj,
+        amount_paid: p.amount_paid,
+        balance: Math.round((p.amount_paid - adj) * 100) / 100,
+      };
+    });
+  }
+
+  // Greedy settlement
+  const balances = adjusted.map(a => ({ name: a.name, balance: a.balance }));
+  const settlements = [];
+  while (true) {
+    const debtors = balances.filter(b => b.balance < -0.005).sort((a, b) => a.balance - b.balance);
+    const creditors = balances.filter(b => b.balance > 0.005).sort((a, b) => b.balance - a.balance);
+    if (!debtors.length || !creditors.length) break;
+    const d = debtors[0], c = creditors[0];
+    const amt = Math.round(Math.min(-d.balance, c.balance) * 100) / 100;
+    settlements.push({ from: d.name, to: c.name, amount: amt });
+    d.balance = Math.round((d.balance + amt) * 100) / 100;
+    c.balance = Math.round((c.balance - amt) * 100) / 100;
+  }
+
+  return { adjusted, settlements };
+}
+
+function renderResult(containerId, result) {
+  const container = document.getElementById(containerId);
+  let html = '<div class="panel" style="text-align:left">';
+  html += '<div class="result-card"><h3>Adjusted Costs</h3>';
+  result.adjusted.forEach(a => {
+    const bal = a.balance >= 0
+      ? `<span style="color:#78C8A0">+$${a.balance.toFixed(2)}</span>`
+      : `<span style="color:#e74c3c">-$${Math.abs(a.balance).toFixed(2)}</span>`;
+    html += `<div class="adj-row">
+      <span><strong>${esc(a.name)}</strong> owes $${a.adjusted_cost.toFixed(2)}, paid $${a.amount_paid.toFixed(2)}</span>
+      ${bal}
+    </div>`;
+  });
+  html += '</div>';
+
+  if (result.settlements.length === 0) {
+    html += '<div class="result-card"><h3>Settlements</h3><p>Everyone is settled up!</p></div>';
+  } else {
+    html += '<div class="result-card"><h3>Who Pays Who</h3>';
+    result.settlements.forEach(s => {
+      html += `<div class="settlement">
+        <strong>${esc(s.from)}</strong>
+        <span class="arrow">&rarr;</span>
+        <strong>${esc(s.to)}</strong>
+        <span class="amount">$${s.amount.toFixed(2)}</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ===== MODE B: Room (SocketIO) =====
+let socket = io();
+
+function roomCreate() {
+  const name = document.getElementById('roomName').value.trim();
+  const errEl = document.getElementById('roomError');
+  errEl.textContent = '';
+  if (!name) { errEl.textContent = 'Enter your name'; return; }
+  socket.emit('sw_create_room', { name });
+}
+
+function roomJoin() {
+  const name = document.getElementById('roomName').value.trim();
+  const code = document.getElementById('roomCode').value.trim().toUpperCase();
+  const errEl = document.getElementById('roomError');
+  errEl.textContent = '';
+  if (!name) { errEl.textContent = 'Enter your name'; return; }
+  if (!code) { errEl.textContent = 'Enter room code'; return; }
+  socket.emit('sw_join_room', { name, code });
+}
+
+function roomSubmit() {
+  const cost = parseFloat(document.getElementById('roomPersonalCost').value) || 0;
+  const paid = parseFloat(document.getElementById('roomAmountPaid').value) || 0;
+  socket.emit('sw_submit_data', { personal_cost: cost, amount_paid: paid });
+}
+
+function roomCalculate() {
+  socket.emit('sw_calculate');
+}
+
+// --- Socket events ---
+socket.on('sw_error', d => {
+  // Show in whichever error element is visible
+  const el = document.getElementById('roomError');
+  const el2 = document.getElementById('roomInError');
+  if (document.getElementById('s-room').classList.contains('active')) {
+    el2.textContent = d.msg;
+  } else {
+    el.textContent = d.msg;
+  }
+});
+
+socket.on('sw_room_created', d => {
+  isHost = true;
+  myRoomCode = d.code;
+  document.getElementById('roomTitle').textContent = 'Room: Host';
+  document.getElementById('roomDispCode').textContent = d.code;
+  document.getElementById('hostCalcArea').style.display = 'block';
+  showScreen('room');
+});
+
+socket.on('sw_joined', d => {
+  isHost = false;
+  myRoomCode = d.code;
+  document.getElementById('roomTitle').textContent = 'Room';
+  document.getElementById('roomDispCode').textContent = d.code;
+  document.getElementById('hostCalcArea').style.display = 'none';
+  showScreen('room');
+});
+
+socket.on('sw_members_update', d => {
+  const list = document.getElementById('memberList');
+  list.innerHTML = '';
+  d.members.forEach(name => {
+    const tag = document.createElement('span');
+    const done = d.submitted.includes(name);
+    tag.className = 'member-tag ' + (done ? 'done' : 'pending');
+    tag.textContent = name + (done ? ' \u2713' : '');
+    list.appendChild(tag);
+  });
+});
+
+socket.on('sw_submitted', d => {
+  document.getElementById('roomInputArea').style.display = 'none';
+  document.getElementById('roomSubmittedMsg').style.display = 'block';
+});
+
+socket.on('sw_result', d => {
+  renderResult('roomResult', d);
+});
+
+socket.on('sw_member_left', d => {
+  document.getElementById('roomInError').textContent = d.name + ' left the room';
+});
+</script>
+</body>
+</html>
