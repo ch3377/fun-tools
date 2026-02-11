@@ -235,6 +235,19 @@ function soloCalculate() {
 
 // ===== Bill Split Algorithm (client-side, mirrors server) =====
 function calculateSettlements(totalCost, people) {
+  // Aggregate entries with the same name (case-insensitive)
+  const merged = {};
+  people.forEach(p => {
+    const key = p.name.toLowerCase();
+    if (merged[key]) {
+      merged[key].personal_cost += p.personal_cost;
+      merged[key].amount_paid += p.amount_paid;
+    } else {
+      merged[key] = { name: p.name, personal_cost: p.personal_cost, amount_paid: p.amount_paid };
+    }
+  });
+  people = Object.values(merged);
+
   const rawSum = people.reduce((s, p) => s + p.personal_cost, 0);
   let adjusted;
   if (rawSum === 0) {

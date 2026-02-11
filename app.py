@@ -63,6 +63,17 @@ def calculate_settlements(total_cost, people):
     people: list of {name, personal_cost, amount_paid}
     Returns {adjusted: [{name, adjusted_cost, amount_paid, balance}], settlements: [{from, to, amount}]}
     """
+    # Aggregate entries with the same name (case-insensitive)
+    merged = {}
+    for p in people:
+        key = p['name'].lower()
+        if key in merged:
+            merged[key]['personal_cost'] += p['personal_cost']
+            merged[key]['amount_paid'] += p['amount_paid']
+        else:
+            merged[key] = dict(p)
+    people = list(merged.values())
+
     # 1. Pro-rate personal costs if sum != total_cost
     raw_sum = sum(p['personal_cost'] for p in people)
     if raw_sum == 0:
