@@ -565,10 +565,12 @@ def on_sp_vote_spy(data):
 def on_sp_next_round():
     sid = request.sid
     code, room = sp_get_room(sid)
-    if not room or room['phase'] != 'result':
+    if not room or room['phase'] not in ('result', 'lobby'):
         return
     if room['host_sid'] != sid:
         return emit('sp_error', {'msg': 'Only host can start next round'})
+    if len(room['players']) < 3:
+        return emit('sp_error', {'msg': 'Need at least 3 players'})
     sp_start_round(code, room)
 
 
@@ -601,14 +603,17 @@ def on_disconnect():
         if not sp_room['players']:
             del sp_rooms[sp_code]
         else:
+            # Reassign host if the host left
+            if sp_room['host_sid'] == sid:
+                sp_room['host_sid'] = sp_room['players'][0]['sid']
             if left:
                 emit('sp_player_left', {'name': left['name']}, to=sp_code)
-            if sp_room['phase'] != 'lobby':
+            # If mid-game, return to lobby but keep scores
+            if sp_room['phase'] not in ('lobby', 'result'):
                 sp_room['phase'] = 'lobby'
-                sp_room['round'] = 0
                 sp_room['spy_history'] = []
                 emit('sp_game_ended', {
-                    'reason': left['name'] + ' disconnected'
+                    'reason': left['name'] + ' left. Round cancelled.'
                 }, to=sp_code)
             sp_broadcast_players(sp_code, sp_room)
 

@@ -136,7 +136,7 @@ canvas.draw-canvas{display:block;background:#fff;touch-action:none;cursor:crossh
     <p style="color:#888;font-size:.9em;margin-bottom:8px">Share this code with friends</p>
     <div class="player-list" id="spPlayerList"></div>
     <div id="spHostControls" style="display:none;margin-top:12px">
-      <button class="btn btn-purple" onclick="spStartGame()">Start Game</button>
+      <button class="btn btn-purple" id="spStartBtn" onclick="spStartOrNext()">Start Game</button>
       <p style="color:#999;font-size:.8em;margin-top:4px">Need at least 3 players</p>
     </div>
     <div class="error" id="spRoomErr"></div>
@@ -214,8 +214,11 @@ canvas.draw-canvas{display:block;background:#fff;touch-action:none;cursor:crossh
     <div class="result-card" id="spResultWord"></div>
     <div class="result-card" id="spResultVotes"></div>
     <div class="result-card" id="spResultScores"></div>
-    <div id="spNextRoundArea" style="display:none;margin-top:12px">
-      <button class="btn btn-purple" onclick="spNextRound()">Next Round</button>
+    <div style="margin-top:12px">
+      <div id="spNextRoundArea" style="display:none">
+        <button class="btn btn-purple" onclick="spNextRound()">Next Round</button>
+      </div>
+      <button class="btn btn-gray" onclick="showScreen('room')">Back to Room</button>
     </div>
   </div>
 </div>
@@ -242,7 +245,7 @@ const WIDTHS = [{w:2,sz:8},{w:5,sz:12},{w:10,sz:18},{w:20,sz:24}];
 // ===== State =====
 let socket = io();
 let isHost = false, isSpy = false, myName = '', roomCode = '';
-let chosenWord = '', rejectedWords = [];
+let chosenWord = '', rejectedWords = [], roundNum = 0;
 // Drawing state
 let drawCanvas, drawCtx;
 let curTool = 'pen', curColor = '#000000', curWidth = 5;
@@ -281,7 +284,13 @@ function renderPlayers(players) {
     list.appendChild(tag);
   });
 }
-function spStartGame() { socket.emit('sp_start_game'); }
+function spStartOrNext() {
+  if (roundNum > 0) {
+    socket.emit('sp_next_round');
+  } else {
+    socket.emit('sp_start_game');
+  }
+}
 
 // ===== Word Phase =====
 function spSuggestWord() {
@@ -667,15 +676,16 @@ socket.on('sp_joined', d => {
 
 socket.on('sp_players_update', d => {
   renderPlayers(d.players);
-  // Check if I'm host
   const me = d.players.find(p => p.name === myName);
-  if (me && me.is_host) {
-    isHost = true;
-    document.getElementById('spHostControls').style.display = 'block';
-  }
+  isHost = me ? me.is_host : false;
+  document.getElementById('spHostControls').style.display = isHost ? 'block' : 'none';
+  // Update button text
+  const btn = document.getElementById('spStartBtn');
+  if (btn) btn.textContent = roundNum > 0 ? 'Next Round' : 'Start Game';
 });
 
 socket.on('sp_round_start', d => {
+  roundNum = d.round;
   isSpy = d.is_spy;
   const roleEl = document.getElementById('spRoleText');
   if (isSpy) {
@@ -837,7 +847,7 @@ socket.on('sp_player_left', d => {
 });
 
 socket.on('sp_game_ended', d => {
-  alert(d.reason + '. Returning to room.');
+  showErr('spRoomErr', d.reason);
   showScreen('room');
 });
 </script>
