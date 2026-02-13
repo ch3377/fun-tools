@@ -6,7 +6,8 @@ from flask_socketio import SocketIO, emit, join_room as sio_join
 
 app = Flask(__name__)
 app.secret_key = 'funtookit-secret'
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*",
+                    ping_timeout=120, ping_interval=30)
 
 # ---------------------------------------------------------------------------
 # TOOLS registry – add a new tool here, create a route + template, done!
@@ -375,10 +376,24 @@ def on_sp_join(data):
     if code not in sp_rooms:
         return emit('sp_error', {'msg': 'Room not found'})
     room = sp_rooms[code]
-    if room['phase'] != 'lobby':
-        return emit('sp_error', {'msg': 'Game already in progress'})
-    if any(p['name'].lower() == name.lower() for p in room['players']):
-        return emit('sp_error', {'msg': 'Name already taken'})
+    # Check if this is a rejoin (same name, reconnecting)
+    existing = next((p for p in room['players']
+                     if p['name'].lower() == name.lower()), None)
+    if existing:
+        # Rejoin: update SID
+        old_sid = existing['sid']
+        sp_sid_to_room.pop(old_sid, None)
+        existing['sid'] = sid
+        sp_sid_to_room[sid] = code
+        sio_join(code)
+        # Reassign host if needed
+        if room['host_sid'] == old_sid:
+            room['host_sid'] = sid
+        emit('sp_joined', {'code': code, 'name': name})
+        sp_broadcast_players(code, room)
+        return
+    if room['phase'] not in ('lobby', 'result'):
+        return emit('sp_error', {'msg': 'Game in progress, wait for next round'})
     if len(room['players']) >= 8:
         return emit('sp_error', {'msg': 'Room is full (max 8)'})
     room['players'].append({'sid': sid, 'name': name, 'score': 0})

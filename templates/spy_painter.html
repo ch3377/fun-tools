@@ -850,6 +850,13 @@ socket.on('sp_game_ended', d => {
   showErr('spRoomErr', d.reason);
   showScreen('room');
 });
+
+// Auto-rejoin room on reconnect
+socket.on('connect', () => {
+  if (roomCode && myName) {
+    socket.emit('sp_join_room', {name: myName, code: roomCode});
+  }
+});
 </script>
 </body>
 </html>
