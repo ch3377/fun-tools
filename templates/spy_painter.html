@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Spy Painter - FunTookit</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#FFF5EE;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;padding:24px 16px;color:#333}
+.back{position:fixed;top:16px;left:16px;text-decoration:none;color:#C9A0DC;font-weight:bold;
+  font-size:1.1em;padding:8px 16px;background:#fff;border-radius:12px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);transition:transform .15s;z-index:10}
+.back:hover{transform:scale(1.05)}
+h1{font-size:1.8em;margin-bottom:4px;color:#9B6DC6}
+.subtitle{color:#999;margin-bottom:16px;font-size:.95em}
+.screen{display:none;flex-direction:column;align-items:center;width:100%;max-width:700px}
+.screen.active{display:flex}
+.panel{background:#fff;border-radius:20px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.08);
+  text-align:center;width:100%;margin-bottom:16px}
+input{padding:10px 16px;font-size:1em;border:2px solid #eee;border-radius:12px;width:100%;
+  max-width:300px;margin-bottom:10px}
+input:focus{border-color:#C9A0DC;outline:none}
+.btn{padding:10px 24px;font-size:1em;border:none;border-radius:12px;cursor:pointer;
+  font-weight:bold;transition:transform .1s;margin:4px}
+.btn:hover{transform:scale(1.05)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;cursor:default;transform:none}
+.btn-purple{background:#C9A0DC;color:#fff}
+.btn-gray{background:#ddd;color:#666}
+.btn-pink{background:#FF9EB5;color:#fff}
+.btn-green{background:#78C8A0;color:#fff}
+.btn-sm{padding:6px 14px;font-size:.9em}
+.error{color:#e74c3c;font-weight:bold;margin:8px 0;font-size:.9em}
+.room-code{font-size:2.2em;font-weight:bold;color:#9B6DC6;letter-spacing:6px;margin:8px 0}
+
+/* Player list */
+.player-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
+.player-tag{padding:6px 14px;border-radius:16px;font-size:.9em;font-weight:bold;
+  background:#f3e8ff;color:#7B4FAF}
+.player-tag.host::after{content:' \u2605';color:#FFB74D}
+
+/* Role reveal */
+.role-reveal{font-size:1.8em;font-weight:bold;margin:16px 0;animation:popIn .5s ease-out}
+.role-spy{color:#e74c3c}
+.role-painter{color:#78C8A0}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* Word phase */
+.word-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
+.word-chip{padding:8px 16px;border-radius:12px;background:#f3e8ff;color:#7B4FAF;
+  font-weight:bold;cursor:pointer;border:3px solid transparent;transition:all .15s}
+.word-chip:hover{border-color:#C9A0DC}
+.word-chip.voted{border-color:#9B6DC6;background:#C9A0DC;color:#fff}
+.word-chip.selected{border-color:#9B6DC6}
+
+/* Drawing */
+.draw-header{font-size:1.1em;font-weight:bold;margin-bottom:8px;padding:8px 16px;
+  border-radius:12px;background:#f3e8ff}
+.draw-word{font-size:1.3em;color:#9B6DC6;font-weight:bold;margin:4px 0}
+.canvas-wrap{position:relative;display:inline-block;margin:8px 0;border-radius:12px;
+  overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.1)}
+canvas.draw-canvas{display:block;background:#fff;touch-action:none;cursor:crosshair}
+.toolbar{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin:8px 0}
+.tool-btn{width:40px;height:40px;border:2px solid #ddd;border-radius:10px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:1.2em;background:#fff;
+  transition:all .15s}
+.tool-btn:hover{border-color:#C9A0DC}
+.tool-btn.active{border-color:#9B6DC6;background:#f3e8ff}
+.palette{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin:6px 0}
+.color-swatch{width:28px;height:28px;border-radius:6px;cursor:pointer;border:2px solid transparent;
+  transition:transform .1s}
+.color-swatch:hover{transform:scale(1.15)}
+.color-swatch.active{border-color:#333;transform:scale(1.15)}
+.width-bar{display:flex;gap:6px;justify-content:center;align-items:center;margin:6px 0}
+.width-btn{border:2px solid #ddd;border-radius:50%;cursor:pointer;background:#666;
+  transition:all .15s}
+.width-btn:hover{border-color:#C9A0DC}
+.width-btn.active{border-color:#9B6DC6}
+.action-bar{display:flex;gap:8px;justify-content:center;margin:8px 0;flex-wrap:wrap}
+
+/* Gallery */
+.gallery-grid{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:12px 0}
+.gallery-player{background:#fff;border-radius:16px;padding:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);
+  text-align:center;min-width:180px}
+.gallery-player h3{font-size:1em;margin-bottom:6px;color:#555}
+.gallery-drawings{display:flex;gap:6px;justify-content:center;margin-bottom:8px}
+.gallery-drawings canvas{border-radius:8px;border:1px solid #eee}
+.vote-btn{padding:6px 16px;border:none;border-radius:10px;cursor:pointer;font-weight:bold;
+  background:#f3e8ff;color:#9B6DC6;transition:all .15s}
+.vote-btn:hover{background:#C9A0DC;color:#fff}
+.vote-btn.voted{background:#9B6DC6;color:#fff}
+.vote-btn:disabled{opacity:.5;cursor:default}
+
+/* Completed drawings strip */
+.completed-strip{display:flex;gap:8px;overflow-x:auto;padding:8px 0;margin:8px 0;
+  justify-content:center;flex-wrap:wrap}
+.completed-item{text-align:center;flex-shrink:0}
+.completed-item canvas{border-radius:6px;border:1px solid #eee;display:block}
+.completed-item .name{font-size:.75em;color:#888;margin-top:2px}
+
+/* Result */
+.result-card{background:#f3e8ff;border-radius:12px;padding:16px;margin:8px 0;text-align:left}
+.result-card h3{margin-bottom:8px;color:#9B6DC6}
+.score-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e8d4f5}
+.score-row:last-child{border-bottom:none}
+.score-add{color:#78C8A0;font-weight:bold}
+</style>
+</head>
+<body>
+
+<a class="back" href="/">&larr; Home</a>
+<h1>Spy Painter</h1>
+<p class="subtitle">Draw, guess, and find the spy!</p>
+
+<!-- LOBBY -->
+<div id="sp-lobby" class="screen active">
+  <div class="panel">
+    <h2 style="margin-bottom:16px;color:#9B6DC6">Join or Create a Room</h2>
+    <input id="spName" placeholder="Your name" maxlength="12">
+    <br>
+    <button class="btn btn-purple" onclick="spCreate()">Create Room</button>
+    <hr style="margin:16px 0;border:none;border-top:1px solid #eee">
+    <input id="spCode" placeholder="Room code" maxlength="4" style="text-transform:uppercase">
+    <br>
+    <button class="btn btn-purple" onclick="spJoin()">Join Room</button>
+    <div class="error" id="spLobbyErr"></div>
+  </div>
+</div>
+
+<!-- ROOM / WAITING -->
+<div id="sp-room" class="screen">
+  <div class="panel">
+    <h2 style="color:#9B6DC6">Room</h2>
+    <div class="room-code" id="spRoomCode"></div>
+    <p style="color:#888;font-size:.9em;margin-bottom:8px">Share this code with friends</p>
+    <div class="player-list" id="spPlayerList"></div>
+    <div id="spHostControls" style="display:none;margin-top:12px">
+      <button class="btn btn-purple" onclick="spStartGame()">Start Game</button>
+      <p style="color:#999;font-size:.8em;margin-top:4px">Need at least 3 players</p>
+    </div>
+    <div class="error" id="spRoomErr"></div>
+  </div>
+</div>
+
+<!-- WORD PHASE -->
+<div id="sp-word" class="screen">
+  <div class="panel">
+    <div class="role-reveal" id="spRoleText"></div>
+    <div id="spWordSuggest" style="display:none">
+      <p style="margin-bottom:8px;color:#888">Suggest a word for everyone to draw:</p>
+      <input id="spWordInput" placeholder="Enter a word" maxlength="30">
+      <br>
+      <button class="btn btn-purple" onclick="spSuggestWord()">Submit Word</button>
+      <div class="word-list" id="spSuggestedWords"></div>
+    </div>
+    <div id="spWordVote" style="display:none">
+      <p style="margin-bottom:8px;color:#888">Vote for the word to draw:</p>
+      <div class="word-list" id="spVoteWords"></div>
+    </div>
+    <div id="spWordWait" style="display:none">
+      <p style="color:#888;font-size:1.1em">Waiting for painters to pick a word...</p>
+    </div>
+    <div id="spWordResult" style="display:none">
+      <div id="spWordResultText" style="font-size:1.2em;margin:12px 0"></div>
+    </div>
+    <div class="error" id="spWordErr"></div>
+  </div>
+</div>
+
+<!-- DRAWING PHASE -->
+<div id="sp-draw" class="screen">
+  <div class="panel" style="padding:16px 12px;max-width:680px">
+    <div class="draw-header" id="spDrawHeader"></div>
+    <div class="draw-word" id="spDrawWord"></div>
+    <div class="canvas-wrap">
+      <canvas id="drawCanvas" class="draw-canvas" width="600" height="400"></canvas>
+    </div>
+    <div id="spDrawTools" style="display:none">
+      <div class="toolbar" id="spToolbar"></div>
+      <div class="palette" id="spPalette"></div>
+      <div class="width-bar" id="spWidthBar"></div>
+      <div class="action-bar">
+        <button class="btn btn-gray btn-sm" onclick="spUndo()">Undo</button>
+        <button class="btn btn-gray btn-sm" onclick="spClearCanvas()">Clear</button>
+        <button class="btn btn-green" onclick="spDrawDone()">Done</button>
+      </div>
+    </div>
+    <div id="spWatching" style="display:none">
+      <p style="color:#888;margin-top:8px">Watching...</p>
+    </div>
+    <div id="spCompletedArea" style="display:none;margin-top:12px">
+      <p style="color:#888;font-size:.85em;margin-bottom:4px">Completed drawings:</p>
+      <div class="completed-strip" id="spCompletedStrip"></div>
+    </div>
+  </div>
+</div>
+
+<!-- GALLERY + VOTE -->
+<div id="sp-gallery" class="screen">
+  <div class="panel" style="max-width:900px">
+    <h2 style="color:#9B6DC6;margin-bottom:8px">Who is the Spy?</h2>
+    <p style="color:#888;margin-bottom:12px">Review the drawings and vote!</p>
+    <div class="gallery-grid" id="spGalleryGrid"></div>
+    <p style="color:#888;font-size:.9em;margin-top:8px" id="spVoteStatus"></p>
+    <div class="error" id="spGalleryErr"></div>
+  </div>
+</div>
+
+<!-- ROUND RESULT -->
+<div id="sp-result" class="screen">
+  <div class="panel">
+    <div id="spResultReveal" style="font-size:1.5em;font-weight:bold;margin-bottom:12px"></div>
+    <div class="result-card" id="spResultWord"></div>
+    <div class="result-card" id="spResultVotes"></div>
+    <div class="result-card" id="spResultScores"></div>
+    <div id="spNextRoundArea" style="display:none;margin-top:12px">
+      <button class="btn btn-purple" onclick="spNextRound()">Next Round</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+// ===== Constants =====
+const CW = 600, CH = 400;
+const COLORS = [
+  '#000000','#ffffff','#ff0000','#ff6600','#ffcc00','#33cc00',
+  '#0066ff','#9933ff','#ff66cc','#996633','#808080','#00cccc',
+  '#ff9999','#ffcc99','#99ff99','#9999ff'
+];
+const TOOLS = [
+  {id:'pen', icon:'\u270F\uFE0F', tip:'Pen'},
+  {id:'line', icon:'\u2571', tip:'Line'},
+  {id:'rect', icon:'\u25A1', tip:'Rectangle'},
+  {id:'circle', icon:'\u25CB', tip:'Circle'},
+  {id:'fill', icon:'\uD83E\uDEA3', tip:'Fill'},
+  {id:'eraser', icon:'\uD83E\uDDF9', tip:'Eraser'},
+];
+const WIDTHS = [{w:2,sz:8},{w:5,sz:12},{w:10,sz:18},{w:20,sz:24}];
+
+// ===== State =====
+let socket = io();
+let isHost = false, isSpy = false, myName = '', roomCode = '';
+let chosenWord = '', rejectedWords = [];
+// Drawing state
+let drawCanvas, drawCtx;
+let curTool = 'pen', curColor = '#000000', curWidth = 5;
+let strokes = [], isDrawing = false, startX = 0, startY = 0, curPoints = [];
+let myVotedIdx = -1;
+
+// ===== Screen =====
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('sp-' + id).classList.add('active');
+}
+
+// ===== Lobby =====
+function spCreate() {
+  myName = document.getElementById('spName').value.trim();
+  if (!myName) return showErr('spLobbyErr', 'Enter your name');
+  socket.emit('sp_create_room', {name: myName});
+}
+function spJoin() {
+  myName = document.getElementById('spName').value.trim();
+  const code = document.getElementById('spCode').value.trim().toUpperCase();
+  if (!myName) return showErr('spLobbyErr', 'Enter your name');
+  if (!code) return showErr('spLobbyErr', 'Enter room code');
+  socket.emit('sp_join_room', {name: myName, code});
+}
+function showErr(id, msg) { document.getElementById(id).textContent = msg; }
+
+// ===== Room =====
+function renderPlayers(players) {
+  const list = document.getElementById('spPlayerList');
+  list.innerHTML = '';
+  players.forEach(p => {
+    const tag = document.createElement('span');
+    tag.className = 'player-tag' + (p.is_host ? ' host' : '');
+    tag.textContent = p.name + (p.score > 0 ? ' (' + p.score + ')' : '');
+    list.appendChild(tag);
+  });
+}
+function spStartGame() { socket.emit('sp_start_game'); }
+
+// ===== Word Phase =====
+function spSuggestWord() {
+  const word = document.getElementById('spWordInput').value.trim();
+  if (!word) return;
+  socket.emit('sp_suggest_word', {word});
+  document.getElementById('spWordInput').disabled = true;
+  document.querySelector('#spWordSuggest .btn').disabled = true;
+}
+
+function renderSuggestedWords(words) {
+  const el = document.getElementById('spSuggestedWords');
+  el.innerHTML = '';
+  words.forEach(w => {
+    const chip = document.createElement('span');
+    chip.className = 'word-chip';
+    chip.textContent = w;
+    el.appendChild(chip);
+  });
+}
+
+function renderVoteWords(words) {
+  const el = document.getElementById('spVoteWords');
+  el.innerHTML = '';
+  words.forEach((w, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'word-chip';
+    chip.textContent = w;
+    chip.onclick = () => {
+      socket.emit('sp_vote_word', {word_idx: i});
+      el.querySelectorAll('.word-chip').forEach(c => c.classList.remove('voted'));
+      chip.classList.add('voted');
+    };
+    el.appendChild(chip);
+  });
+}
+
+// ===== Drawing =====
+function initDrawCanvas(isDrawer) {
+  drawCanvas = document.getElementById('drawCanvas');
+  drawCtx = drawCanvas.getContext('2d');
+  strokes = [];
+  isDrawing = false;
+  // Set responsive width
+  const maxW = Math.min(600, window.innerWidth - 48);
+  drawCanvas.style.width = maxW + 'px';
+  drawCanvas.style.height = (maxW * CH / CW) + 'px';
+  clearCanvas(drawCtx);
+
+  if (isDrawer) {
+    document.getElementById('spDrawTools').style.display = 'block';
+    document.getElementById('spWatching').style.display = 'none';
+    drawCanvas.style.cursor = 'crosshair';
+    buildToolbar();
+    buildPalette();
+    buildWidthBar();
+    // Mouse events
+    drawCanvas.onmousedown = e => { e.preventDefault(); onDown(...getCoords(e)); };
+    drawCanvas.onmousemove = e => { e.preventDefault(); onMove(...getCoords(e)); };
+    drawCanvas.onmouseup = e => { e.preventDefault(); onUp(); };
+    drawCanvas.onmouseleave = e => { if(isDrawing) onUp(); };
+    // Touch events
+    drawCanvas.ontouchstart = e => { e.preventDefault(); onDown(...getTouchCoords(e)); };
+    drawCanvas.ontouchmove = e => { e.preventDefault(); onMove(...getTouchCoords(e)); };
+    drawCanvas.ontouchend = e => { e.preventDefault(); onUp(); };
+  } else {
+    document.getElementById('spDrawTools').style.display = 'none';
+    document.getElementById('spWatching').style.display = 'block';
+    drawCanvas.style.cursor = 'default';
+    drawCanvas.onmousedown = drawCanvas.onmousemove = drawCanvas.onmouseup = null;
+    drawCanvas.onmouseleave = null;
+    drawCanvas.ontouchstart = drawCanvas.ontouchmove = drawCanvas.ontouchend = null;
+  }
+}
+
+function getCoords(e) {
+  const r = drawCanvas.getBoundingClientRect();
+  return [((e.clientX - r.left) * CW / r.width), ((e.clientY - r.top) * CH / r.height)];
+}
+function getTouchCoords(e) {
+  const t = e.touches[0], r = drawCanvas.getBoundingClientRect();
+  return [((t.clientX - r.left) * CW / r.width), ((t.clientY - r.top) * CH / r.height)];
+}
+
+function onDown(x, y) {
+  isDrawing = true;
+  startX = x; startY = y;
+  if (curTool === 'pen' || curTool === 'eraser') {
+    curPoints = [[x, y]];
+  } else if (curTool === 'fill') {
+    const stroke = {tool:'fill', color:curColor, x:Math.round(x), y:Math.round(y)};
+    strokes.push(stroke);
+    floodFill(drawCtx, stroke.x, stroke.y, stroke.color);
+    socket.emit('sp_stroke', {stroke});
+    isDrawing = false;
+  }
+}
+
+function onMove(x, y) {
+  if (!isDrawing) return;
+  if (curTool === 'pen' || curTool === 'eraser') {
+    curPoints.push([x, y]);
+    const col = curTool === 'eraser' ? '#ffffff' : curColor;
+    drawCtx.strokeStyle = col;
+    drawCtx.lineWidth = curWidth;
+    drawCtx.lineCap = 'round';
+    drawCtx.lineJoin = 'round';
+    drawCtx.beginPath();
+    const p = curPoints;
+    drawCtx.moveTo(p[p.length-2][0], p[p.length-2][1]);
+    drawCtx.lineTo(x, y);
+    drawCtx.stroke();
+  } else if (curTool === 'line' || curTool === 'rect' || curTool === 'circle') {
+    renderAllStrokes(drawCtx, strokes);
+    drawShapePreview(drawCtx, startX, startY, x, y);
+  }
+}
+
+function onUp() {
+  if (!isDrawing) return;
+  isDrawing = false;
+  let stroke;
+  if (curTool === 'pen' || curTool === 'eraser') {
+    if (curPoints.length < 2) curPoints.push([startX, startY]);
+    stroke = {tool:curTool, color:curTool==='eraser'?'#ffffff':curColor, width:curWidth, points:curPoints};
+  } else if (curTool === 'line') {
+    stroke = {tool:'line', color:curColor, width:curWidth, x1:startX, y1:startY, x2:startX, y2:startY};
+    // Use last mouse position from preview... need to capture it
+  } else if (curTool === 'rect') {
+    stroke = {tool:'rect', color:curColor, width:curWidth, x1:startX, y1:startY, x2:startX, y2:startY};
+  } else if (curTool === 'circle') {
+    stroke = {tool:'circle', color:curColor, width:curWidth, x1:startX, y1:startY, x2:startX, y2:startY};
+  }
+  // For shapes, we need the end position - capture via last known position
+  if (curTool === 'line' || curTool === 'rect' || curTool === 'circle') {
+    stroke.x2 = lastMoveX; stroke.y2 = lastMoveY;
+  }
+  if (stroke) {
+    strokes.push(stroke);
+    renderAllStrokes(drawCtx, strokes);
+    socket.emit('sp_stroke', {stroke});
+  }
+}
+let lastMoveX = 0, lastMoveY = 0;
+// Patch onMove to track last position
+const origOnMove = onMove;
+onMove = function(x, y) { lastMoveX = x; lastMoveY = y; origOnMove(x, y); };
+
+function drawShapePreview(ctx, x1, y1, x2, y2) {
+  ctx.strokeStyle = curColor;
+  ctx.lineWidth = curWidth;
+  ctx.lineCap = 'round';
+  if (curTool === 'line') {
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(lastMoveX,lastMoveY); ctx.stroke();
+  } else if (curTool === 'rect') {
+    ctx.beginPath(); ctx.rect(x1,y1,lastMoveX-x1,lastMoveY-y1); ctx.stroke();
+  } else if (curTool === 'circle') {
+    const rx = Math.abs(lastMoveX-x1)/2, ry = Math.abs(lastMoveY-y1)/2;
+    const cx = (x1+lastMoveX)/2, cy = (y1+lastMoveY)/2;
+    ctx.beginPath();
+    if (rx > 0 && ry > 0) ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);
+    ctx.stroke();
+  }
+}
+
+function clearCanvas(ctx) {
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, CW, CH);
+}
+
+function renderAllStrokes(ctx, strokeList) {
+  clearCanvas(ctx);
+  for (const s of strokeList) drawStroke(ctx, s);
+}
+
+function drawStroke(ctx, s) {
+  if (s.tool === 'pen' || s.tool === 'eraser') {
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = s.width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (s.points && s.points.length > 0) {
+      ctx.moveTo(s.points[0][0], s.points[0][1]);
+      for (let i = 1; i < s.points.length; i++)
+        ctx.lineTo(s.points[i][0], s.points[i][1]);
+    }
+    ctx.stroke();
+  } else if (s.tool === 'line') {
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
+  } else if (s.tool === 'rect') {
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width;
+    ctx.beginPath(); ctx.rect(s.x1,s.y1,s.x2-s.x1,s.y2-s.y1); ctx.stroke();
+  } else if (s.tool === 'circle') {
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width;
+    const rx = Math.abs(s.x2-s.x1)/2, ry = Math.abs(s.y2-s.y1)/2;
+    const cx = (s.x1+s.x2)/2, cy = (s.y1+s.y2)/2;
+    ctx.beginPath();
+    if (rx > 0 && ry > 0) ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);
+    ctx.stroke();
+  } else if (s.tool === 'fill') {
+    floodFill(ctx, s.x, s.y, s.color);
+  }
+}
+
+function floodFill(ctx, sx, sy, color) {
+  if (sx < 0 || sx >= CW || sy < 0 || sy >= CH) return;
+  const img = ctx.getImageData(0, 0, CW, CH);
+  const d = img.data;
+  const i0 = (sy * CW + sx) * 4;
+  const tR = d[i0], tG = d[i0+1], tB = d[i0+2];
+  const [fR, fG, fB] = hexRgb(color);
+  if (Math.abs(tR-fR)<5 && Math.abs(tG-fG)<5 && Math.abs(tB-fB)<5) return;
+  const tol = 30;
+  const match = i => Math.abs(d[i]-tR)<=tol && Math.abs(d[i+1]-tG)<=tol && Math.abs(d[i+2]-tB)<=tol;
+  const stack = [[sx, sy]];
+  while (stack.length) {
+    let [x, y] = stack.pop();
+    let i = (y * CW + x) * 4;
+    if (!match(i)) continue;
+    while (x > 0 && match((y*CW+x-1)*4)) x--;
+    let sa = false, sb = false;
+    while (x < CW) {
+      i = (y*CW+x)*4;
+      if (!match(i)) break;
+      d[i]=fR; d[i+1]=fG; d[i+2]=fB; d[i+3]=255;
+      if (y>0) { const a=((y-1)*CW+x)*4; if(match(a)&&!sa){stack.push([x,y-1]);sa=true;}else if(!match(a))sa=false; }
+      if (y<CH-1) { const b=((y+1)*CW+x)*4; if(match(b)&&!sb){stack.push([x,y+1]);sb=true;}else if(!match(b))sb=false; }
+      x++;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function hexRgb(h) {
+  return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+}
+
+// Toolbar builders
+function buildToolbar() {
+  const bar = document.getElementById('spToolbar');
+  bar.innerHTML = '';
+  TOOLS.forEach(t => {
+    const btn = document.createElement('div');
+    btn.className = 'tool-btn' + (t.id === curTool ? ' active' : '');
+    btn.title = t.tip;
+    btn.textContent = t.icon;
+    btn.onclick = () => {
+      curTool = t.id;
+      bar.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      drawCanvas.style.cursor = t.id === 'fill' ? 'cell' : 'crosshair';
+    };
+    bar.appendChild(btn);
+  });
+}
+
+function buildPalette() {
+  const pal = document.getElementById('spPalette');
+  pal.innerHTML = '';
+  COLORS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (c === curColor ? ' active' : '');
+    sw.style.background = c;
+    if (c === '#ffffff') sw.style.border = '2px solid #ccc';
+    sw.onclick = () => {
+      curColor = c;
+      pal.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+    };
+    pal.appendChild(sw);
+  });
+}
+
+function buildWidthBar() {
+  const bar = document.getElementById('spWidthBar');
+  bar.innerHTML = '<span style="font-size:.8em;color:#888;margin-right:4px">Width:</span>';
+  WIDTHS.forEach(w => {
+    const btn = document.createElement('div');
+    btn.className = 'width-btn' + (w.w === curWidth ? ' active' : '');
+    btn.style.width = w.sz + 'px';
+    btn.style.height = w.sz + 'px';
+    btn.onclick = () => {
+      curWidth = w.w;
+      bar.querySelectorAll('.width-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    bar.appendChild(btn);
+  });
+}
+
+function spUndo() {
+  if (strokes.length === 0) return;
+  strokes.pop();
+  renderAllStrokes(drawCtx, strokes);
+  socket.emit('sp_undo');
+}
+
+function spClearCanvas() {
+  strokes = [];
+  clearCanvas(drawCtx);
+  socket.emit('sp_clear_canvas');
+}
+
+function spDrawDone() {
+  socket.emit('sp_draw_done');
+}
+
+// ===== Gallery =====
+function renderGallery(drawings, players) {
+  const grid = document.getElementById('spGalleryGrid');
+  grid.innerHTML = '';
+  myVotedIdx = -1;
+  // Group drawings by player
+  const grouped = {};
+  drawings.forEach(d => {
+    if (!grouped[d.player_idx]) grouped[d.player_idx] = [];
+    grouped[d.player_idx].push(d);
+  });
+  const playerIndices = Object.keys(grouped).map(Number);
+  playerIndices.forEach(pIdx => {
+    const div = document.createElement('div');
+    div.className = 'gallery-player';
+    const name = drawings.find(d => d.player_idx === pIdx).player_name;
+    div.innerHTML = '<h3>' + esc(name) + '</h3><div class="gallery-drawings"></div>';
+    const drawDiv = div.querySelector('.gallery-drawings');
+    grouped[pIdx].forEach(d => {
+      const c = document.createElement('canvas');
+      c.width = CW; c.height = CH;
+      c.style.width = '140px'; c.style.height = (140*CH/CW) + 'px';
+      c.style.borderRadius = '8px'; c.style.border = '1px solid #eee';
+      const ctx = c.getContext('2d');
+      renderAllStrokes(ctx, d.strokes);
+      drawDiv.appendChild(c);
+    });
+    // Vote button (can't vote for self)
+    if (name !== myName) {
+      const btn = document.createElement('button');
+      btn.className = 'vote-btn';
+      btn.textContent = 'Vote as Spy';
+      btn.onclick = () => {
+        socket.emit('sp_vote_spy', {target_idx: pIdx});
+        grid.querySelectorAll('.vote-btn').forEach(b => { b.classList.remove('voted'); b.disabled = false; });
+        btn.classList.add('voted');
+        btn.disabled = true;
+        myVotedIdx = pIdx;
+      };
+      div.appendChild(btn);
+    }
+    grid.appendChild(div);
+  });
+}
+
+// ===== Results =====
+function spNextRound() { socket.emit('sp_next_round'); }
+
+// ===== Utility =====
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ===== Socket Events =====
+socket.on('sp_error', d => {
+  ['spLobbyErr','spRoomErr','spWordErr','spGalleryErr'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.closest('.screen.active')) el.textContent = d.msg;
+  });
+});
+
+socket.on('sp_room_created', d => {
+  isHost = true;
+  roomCode = d.code;
+  document.getElementById('spRoomCode').textContent = d.code;
+  document.getElementById('spHostControls').style.display = 'block';
+  showScreen('room');
+});
+
+socket.on('sp_joined', d => {
+  roomCode = d.code;
+  document.getElementById('spRoomCode').textContent = d.code;
+  document.getElementById('spHostControls').style.display = isHost ? 'block' : 'none';
+  showScreen('room');
+});
+
+socket.on('sp_players_update', d => {
+  renderPlayers(d.players);
+  // Check if I'm host
+  const me = d.players.find(p => p.name === myName);
+  if (me && me.is_host) {
+    isHost = true;
+    document.getElementById('spHostControls').style.display = 'block';
+  }
+});
+
+socket.on('sp_round_start', d => {
+  isSpy = d.is_spy;
+  const roleEl = document.getElementById('spRoleText');
+  if (isSpy) {
+    roleEl.className = 'role-reveal role-spy';
+    roleEl.textContent = 'You are the SPY!';
+  } else {
+    roleEl.className = 'role-reveal role-painter';
+    roleEl.textContent = 'You are a Painter! (Round ' + d.round + ')';
+  }
+  // Reset word phase UI
+  document.getElementById('spWordSuggest').style.display = isSpy ? 'none' : 'block';
+  document.getElementById('spWordVote').style.display = 'none';
+  document.getElementById('spWordWait').style.display = isSpy ? 'block' : 'none';
+  document.getElementById('spWordResult').style.display = 'none';
+  document.getElementById('spWordInput').disabled = false;
+  document.getElementById('spWordInput').value = '';
+  const suggestBtn = document.querySelector('#spWordSuggest .btn');
+  if (suggestBtn) suggestBtn.disabled = false;
+  document.getElementById('spSuggestedWords').innerHTML = '';
+  document.getElementById('spWordErr').textContent = '';
+  chosenWord = '';
+  rejectedWords = [];
+  // Clear completed drawings strip for new round
+  document.getElementById('spCompletedStrip').innerHTML = '';
+  document.getElementById('spCompletedArea').style.display = 'none';
+  showScreen('word');
+});
+
+socket.on('sp_words_update', d => {
+  renderSuggestedWords(d.words);
+});
+
+socket.on('sp_vote_phase', d => {
+  document.getElementById('spWordSuggest').style.display = 'none';
+  document.getElementById('spWordVote').style.display = 'block';
+  renderVoteWords(d.words);
+});
+
+socket.on('sp_word_result', d => {
+  const el = document.getElementById('spWordResultText');
+  document.getElementById('spWordSuggest').style.display = 'none';
+  document.getElementById('spWordVote').style.display = 'none';
+  document.getElementById('spWordWait').style.display = 'none';
+  document.getElementById('spWordResult').style.display = 'block';
+  if (d.is_spy) {
+    rejectedWords = d.rejected_words || [];
+    el.innerHTML = '<span style="color:#e74c3c">Rejected words:</span> ' +
+      rejectedWords.map(w => '<strong>' + esc(w) + '</strong>').join(', ') +
+      '<br><span style="color:#888">Try to figure out the real word!</span>';
+  } else {
+    chosenWord = d.chosen_word;
+    el.innerHTML = 'The word is: <span style="color:#9B6DC6;font-size:1.3em">' +
+      esc(chosenWord) + '</span>';
+  }
+});
+
+socket.on('sp_drawing_turn', d => {
+  const header = document.getElementById('spDrawHeader');
+  header.textContent = d.is_me
+    ? 'Your turn to draw! (Turn ' + d.draw_pos + '/' + d.total_draws + ', Pass ' + d.pass_num + ')'
+    : esc(d.drawer_name) + ' is drawing... (Turn ' + d.draw_pos + '/' + d.total_draws + ')';
+  const wordEl = document.getElementById('spDrawWord');
+  if (isSpy) {
+    wordEl.innerHTML = 'You\'re the spy! Rejected: ' +
+      rejectedWords.map(w => '<strong>' + esc(w) + '</strong>').join(', ');
+    wordEl.style.color = '#e74c3c';
+  } else {
+    wordEl.innerHTML = 'Draw: <strong>' + esc(chosenWord) + '</strong>';
+    wordEl.style.color = '#9B6DC6';
+  }
+  initDrawCanvas(d.is_me);
+  showScreen('draw');
+});
+
+socket.on('sp_stroke_broadcast', d => {
+  strokes.push(d.stroke);
+  drawStroke(drawCtx, d.stroke);
+});
+
+socket.on('sp_undo_broadcast', () => {
+  if (strokes.length) strokes.pop();
+  renderAllStrokes(drawCtx, strokes);
+});
+
+socket.on('sp_clear_broadcast', () => {
+  strokes = [];
+  clearCanvas(drawCtx);
+});
+
+socket.on('sp_drawing_complete', d => {
+  const area = document.getElementById('spCompletedArea');
+  const strip = document.getElementById('spCompletedStrip');
+  area.style.display = 'block';
+  const item = document.createElement('div');
+  item.className = 'completed-item';
+  const c = document.createElement('canvas');
+  c.width = CW; c.height = CH;
+  c.style.width = '120px'; c.style.height = (120 * CH / CW) + 'px';
+  const ctx = c.getContext('2d');
+  renderAllStrokes(ctx, d.strokes);
+  item.appendChild(c);
+  const label = document.createElement('div');
+  label.className = 'name';
+  label.textContent = d.player_name;
+  item.appendChild(label);
+  strip.appendChild(item);
+});
+
+socket.on('sp_gallery', d => {
+  renderGallery(d.drawings);
+  document.getElementById('spVoteStatus').textContent = 'Votes: 0/?';
+  document.getElementById('spGalleryErr').textContent = '';
+  showScreen('gallery');
+});
+
+socket.on('sp_vote_count', d => {
+  document.getElementById('spVoteStatus').textContent = 'Votes: ' + d.count + '/' + d.total;
+});
+
+socket.on('sp_round_result', d => {
+  // Reveal
+  const revealEl = document.getElementById('spResultReveal');
+  if (d.caught) {
+    revealEl.innerHTML = 'The spy <span style="color:#e74c3c">' + esc(d.spy_name) +
+      '</span> was caught!';
+  } else {
+    revealEl.innerHTML = '<span style="color:#e74c3c">' + esc(d.spy_name) +
+      '</span> got away! The spy wins!';
+  }
+  // Word
+  document.getElementById('spResultWord').innerHTML =
+    '<h3>The Word</h3><p style="font-size:1.2em">' + esc(d.chosen_word) + '</p>';
+  // Votes
+  let votesHtml = '<h3>Votes</h3>';
+  for (const [voter, target] of Object.entries(d.votes)) {
+    const isCorrect = target === d.spy_name;
+    votesHtml += '<div class="score-row"><span>' + esc(voter) + ' voted for ' + esc(target) + '</span>' +
+      (isCorrect ? '<span style="color:#78C8A0">Correct!</span>' : '') + '</div>';
+  }
+  document.getElementById('spResultVotes').innerHTML = votesHtml;
+  // Scores
+  let scoresHtml = '<h3>Scores</h3>';
+  d.scores.sort((a, b) => b.score - a.score);
+  d.scores.forEach(s => {
+    scoresHtml += '<div class="score-row"><span>' + esc(s.name) +
+      (s.name === d.spy_name ? ' (Spy)' : '') + '</span>' +
+      '<span><strong>' + s.score + '</strong>' +
+      (s.added > 0 ? ' <span class="score-add">+' + s.added + '</span>' : '') +
+      '</span></div>';
+  });
+  document.getElementById('spResultScores').innerHTML = scoresHtml;
+  // Next round button (host only)
+  document.getElementById('spNextRoundArea').style.display = isHost ? 'block' : 'none';
+  showScreen('result');
+});
+
+socket.on('sp_player_left', d => {
+  showErr('spRoomErr', d.name + ' left the room');
+});
+
+socket.on('sp_game_ended', d => {
+  alert(d.reason + '. Returning to room.');
+  showScreen('room');
+});
+</script>
+</body>
+</html>
