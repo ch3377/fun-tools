@@ -749,7 +749,7 @@ socket.on('sp_drawing_turn', d => {
     : esc(d.drawer_name) + ' is drawing... (Turn ' + d.draw_pos + '/' + d.total_draws + ')';
   const wordEl = document.getElementById('spDrawWord');
   if (isSpy) {
-    wordEl.innerHTML = 'You\'re the spy! Rejected: ' +
+    wordEl.innerHTML = 'You\'re the spy! GUESS from: ' +
       rejectedWords.map(w => '<strong>' + esc(w) + '</strong>').join(', ');
     wordEl.style.color = '#e74c3c';
   } else {
