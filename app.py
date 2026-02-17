@@ -470,6 +470,9 @@ def on_sp_vote(data):
         room['rejected_words'] = [w['word'] for i, w in
                                    enumerate(room['suggested_words'])
                                    if i != winner_idx]
+        room['rejected_words'] = [w['word'] for i, w in
+                                  enumerate(room['suggested_words'])
+                                  if True]
         for i, p in enumerate(room['players']):
             if i == room['spy_idx']:
                 emit('sp_word_result', {
