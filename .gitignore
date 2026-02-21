@@ -1,0 +1,4 @@
+wordoriginal
+__pycache__/
+*.pyc
+.env

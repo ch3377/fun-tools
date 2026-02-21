@@ -146,23 +146,21 @@ canvas.draw-canvas{display:block;background:#fff;touch-action:none;cursor:crossh
 <!-- WORD PHASE -->
 <div id="sp-word" class="screen">
   <div class="panel">
-    <div class="role-reveal" id="spRoleText"></div>
-    <div id="spWordSuggest" style="display:none">
-      <p style="margin-bottom:8px;color:#888">Suggest a word for everyone to draw:</p>
-      <input id="spWordInput" placeholder="Enter a word" maxlength="30">
-      <br>
-      <button class="btn btn-purple" onclick="spSuggestWord()">Submit Word</button>
-      <div class="word-list" id="spSuggestedWords"></div>
+    <h2 style="color:#9B6DC6;margin-bottom:4px">Round <span id="spRoundNum">1</span></h2>
+    <div id="spWordReveal" style="display:none">
+      <p style="color:#888;margin-bottom:12px">Your word for this round:</p>
+      <div id="spMyWordDisplay" style="font-size:2.5em;font-weight:bold;color:#9B6DC6;
+        margin:16px 0;padding:16px 32px;background:#f3e8ff;border-radius:16px;
+        display:inline-block"></div>
+      <p style="color:#888;font-size:.9em;margin-top:12px">Remember it — draw it when it's your turn!</p>
     </div>
-    <div id="spWordVote" style="display:none">
-      <p style="margin-bottom:8px;color:#888">Vote for the word to draw:</p>
-      <div class="word-list" id="spVoteWords"></div>
-    </div>
-    <div id="spWordWait" style="display:none">
-      <p style="color:#888;font-size:1.1em">Waiting for painters to pick a word...</p>
-    </div>
-    <div id="spWordResult" style="display:none">
-      <div id="spWordResultText" style="font-size:1.2em;margin:12px 0"></div>
+    <div style="margin-top:16px">
+      <div id="spWordHostBtn" style="display:none">
+        <button class="btn btn-purple" onclick="spStartDrawingNow()">Everyone Ready? Start Drawing</button>
+      </div>
+      <div id="spWordWaitMsg" style="display:none">
+        <p style="color:#999">Waiting for host to start drawing...</p>
+      </div>
     </div>
     <div class="error" id="spWordErr"></div>
   </div>
@@ -244,8 +242,8 @@ const WIDTHS = [{w:2,sz:8},{w:5,sz:12},{w:10,sz:18},{w:20,sz:24}];
 
 // ===== State =====
 let socket = io();
-let isHost = false, isSpy = false, myName = '', roomCode = '';
-let chosenWord = '', rejectedWords = [], roundNum = 0;
+let isHost = false, myName = '', roomCode = '';
+let myWord = '', roundNum = 0;
 // Drawing state
 let drawCanvas, drawCtx;
 let curTool = 'pen', curColor = '#000000', curWidth = 5;
@@ -290,42 +288,6 @@ function spStartOrNext() {
   } else {
     socket.emit('sp_start_game');
   }
-}
-
-// ===== Word Phase =====
-function spSuggestWord() {
-  const word = document.getElementById('spWordInput').value.trim();
-  if (!word) return;
-  socket.emit('sp_suggest_word', {word});
-  document.getElementById('spWordInput').disabled = true;
-  document.querySelector('#spWordSuggest .btn').disabled = true;
-}
-
-function renderSuggestedWords(words) {
-  const el = document.getElementById('spSuggestedWords');
-  el.innerHTML = '';
-  words.forEach(w => {
-    const chip = document.createElement('span');
-    chip.className = 'word-chip';
-    chip.textContent = w;
-    el.appendChild(chip);
-  });
-}
-
-function renderVoteWords(words) {
-  const el = document.getElementById('spVoteWords');
-  el.innerHTML = '';
-  words.forEach((w, i) => {
-    const chip = document.createElement('span');
-    chip.className = 'word-chip';
-    chip.textContent = w;
-    chip.onclick = () => {
-      socket.emit('sp_vote_word', {word_idx: i});
-      el.querySelectorAll('.word-chip').forEach(c => c.classList.remove('voted'));
-      chip.classList.add('voted');
-    };
-    el.appendChild(chip);
-  });
 }
 
 // ===== Drawing =====
@@ -686,61 +648,32 @@ socket.on('sp_players_update', d => {
 
 socket.on('sp_round_start', d => {
   roundNum = d.round;
-  isSpy = d.is_spy;
-  const roleEl = document.getElementById('spRoleText');
-  if (isSpy) {
-    roleEl.className = 'role-reveal role-spy';
-    roleEl.textContent = 'You are the SPY!';
-  } else {
-    roleEl.className = 'role-reveal role-painter';
-    roleEl.textContent = 'You are a Painter! (Round ' + d.round + ')';
-  }
-  // Reset word phase UI
-  document.getElementById('spWordSuggest').style.display = isSpy ? 'none' : 'block';
-  document.getElementById('spWordVote').style.display = 'none';
-  document.getElementById('spWordWait').style.display = isSpy ? 'block' : 'none';
-  document.getElementById('spWordResult').style.display = 'none';
-  document.getElementById('spWordInput').disabled = false;
-  document.getElementById('spWordInput').value = '';
-  const suggestBtn = document.querySelector('#spWordSuggest .btn');
-  if (suggestBtn) suggestBtn.disabled = false;
-  document.getElementById('spSuggestedWords').innerHTML = '';
+  myWord = '';
+  document.getElementById('spRoundNum').textContent = d.round;
+  document.getElementById('spWordReveal').style.display = 'none';
+  document.getElementById('spWordHostBtn').style.display = 'none';
+  document.getElementById('spWordWaitMsg').style.display = 'none';
   document.getElementById('spWordErr').textContent = '';
-  chosenWord = '';
-  rejectedWords = [];
   // Clear completed drawings strip for new round
   document.getElementById('spCompletedStrip').innerHTML = '';
   document.getElementById('spCompletedArea').style.display = 'none';
   showScreen('word');
 });
 
-socket.on('sp_words_update', d => {
-  renderSuggestedWords(d.words);
-});
-
-socket.on('sp_vote_phase', d => {
-  document.getElementById('spWordSuggest').style.display = 'none';
-  document.getElementById('spWordVote').style.display = 'block';
-  renderVoteWords(d.words);
-});
-
-socket.on('sp_word_result', d => {
-  const el = document.getElementById('spWordResultText');
-  document.getElementById('spWordSuggest').style.display = 'none';
-  document.getElementById('spWordVote').style.display = 'none';
-  document.getElementById('spWordWait').style.display = 'none';
-  document.getElementById('spWordResult').style.display = 'block';
-  if (d.is_spy) {
-    rejectedWords = d.rejected_words || [];
-    el.innerHTML = '<span style="color:#e74c3c">Rejected words:</span> ' +
-      rejectedWords.map(w => '<strong>' + esc(w) + '</strong>').join(', ') +
-      '<br><span style="color:#888">Try to figure out the real word!</span>';
+socket.on('sp_word_assigned', d => {
+  myWord = d.word;
+  document.getElementById('spMyWordDisplay').textContent = d.word;
+  document.getElementById('spWordReveal').style.display = 'block';
+  if (isHost) {
+    document.getElementById('spWordHostBtn').style.display = 'block';
   } else {
-    chosenWord = d.chosen_word;
-    el.innerHTML = 'The word is: <span style="color:#9B6DC6;font-size:1.3em">' +
-      esc(chosenWord) + '</span>';
+    document.getElementById('spWordWaitMsg').style.display = 'block';
   }
 });
+
+function spStartDrawingNow() {
+  socket.emit('sp_start_drawing_now');
+}
 
 socket.on('sp_drawing_turn', d => {
   const header = document.getElementById('spDrawHeader');
@@ -748,14 +681,8 @@ socket.on('sp_drawing_turn', d => {
     ? 'Your turn to draw! (Turn ' + d.draw_pos + '/' + d.total_draws + ', Pass ' + d.pass_num + ')'
     : esc(d.drawer_name) + ' is drawing... (Turn ' + d.draw_pos + '/' + d.total_draws + ')';
   const wordEl = document.getElementById('spDrawWord');
-  if (isSpy) {
-    wordEl.innerHTML = 'You\'re the spy! GUESS from: ' +
-      rejectedWords.map(w => '<strong>' + esc(w) + '</strong>').join(', ');
-    wordEl.style.color = '#e74c3c';
-  } else {
-    wordEl.innerHTML = 'Draw: <strong>' + esc(chosenWord) + '</strong>';
-    wordEl.style.color = '#9B6DC6';
-  }
+  wordEl.innerHTML = 'Your word: <strong>' + esc(myWord) + '</strong>';
+  wordEl.style.color = '#9B6DC6';
   initDrawCanvas(d.is_me);
   showScreen('draw');
 });
@@ -815,9 +742,11 @@ socket.on('sp_round_result', d => {
     revealEl.innerHTML = '<span style="color:#e74c3c">' + esc(d.spy_name) +
       '</span> got away! The spy wins!';
   }
-  // Word
+  // Words reveal
   document.getElementById('spResultWord').innerHTML =
-    '<h3>The Word</h3><p style="font-size:1.2em">' + esc(d.chosen_word) + '</p>';
+    '<h3>The Words</h3>' +
+    '<p>Painters drew: <span style="color:#9B6DC6;font-size:1.2em;font-weight:bold">' + esc(d.painter_word) + '</span></p>' +
+    '<p style="margin-top:4px">Spy drew: <span style="color:#e74c3c;font-size:1.2em;font-weight:bold">' + esc(d.spy_word) + '</span></p>';
   // Votes
   let votesHtml = '<h3>Votes</h3>';
   for (const [voter, target] of Object.entries(d.votes)) {

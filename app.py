@@ -1,3 +1,5 @@
+import csv
+import os
 import socket
 import random
 import string
@@ -8,6 +10,24 @@ app = Flask(__name__)
 app.secret_key = 'funtookit-secret'
 socketio = SocketIO(app, cors_allowed_origins="*",
                     ping_timeout=120, ping_interval=30)
+
+# ---------------------------------------------------------------------------
+# Spy Painter – word pairs config (painter_word, spy_word)
+# Edit word_pairs.csv to add/remove pairs. Lines starting with # are ignored.
+# ---------------------------------------------------------------------------
+def _load_word_pairs():
+    pairs = []
+    path = os.path.join(os.path.dirname(__file__), 'word_pairs.csv')
+    with open(path, encoding='utf-8') as f:
+        reader = csv.DictReader(row for row in f if not row.startswith('#'))
+        for row in reader:
+            p = row.get('painter_word', '').strip()
+            s = row.get('spy_word', '').strip()
+            if p and s:
+                pairs.append((p, s))
+    return pairs
+
+WORD_PAIRS = _load_word_pairs()
 
 # ---------------------------------------------------------------------------
 # TOOLS registry – add a new tool here, create a route + template, done!
@@ -231,11 +251,7 @@ def sp_broadcast_players(code, room):
 
 def sp_start_round(code, room):
     room['round'] += 1
-    room['phase'] = 'word_suggest'
-    room['suggested_words'] = []
-    room['word_votes'] = {}
-    room['chosen_word'] = None
-    room['rejected_words'] = []
+    room['phase'] = 'word_reveal'
     room['drawings'] = []
     room['current_strokes'] = []
     room['spy_votes'] = {}
@@ -247,11 +263,16 @@ def sp_start_round(code, room):
         available = list(range(len(room['players'])))
     room['spy_idx'] = random.choice(available)
     room['spy_history'].append(room['spy_idx'])
+    # Pick a word pair from config
+    painter_word, spy_word = random.choice(WORD_PAIRS)
+    room['painter_word'] = painter_word
+    room['spy_word'] = spy_word
+    room['chosen_word'] = painter_word  # kept for result compat
+    # Send round start + each player's word privately (no role reveal)
     for i, p in enumerate(room['players']):
-        emit('sp_round_start', {
-            'round': room['round'],
-            'is_spy': i == room['spy_idx'],
-        }, to=p['sid'])
+        word = spy_word if i == room['spy_idx'] else painter_word
+        emit('sp_round_start', {'round': room['round']}, to=p['sid'])
+        emit('sp_word_assigned', {'word': word}, to=p['sid'])
 
 
 def sp_start_drawing(code, room):
@@ -328,7 +349,8 @@ def sp_resolve_votes(code, room):
         'spy_name': spy_name,
         'spy_idx': spy_idx,
         'caught': caught,
-        'chosen_word': room['chosen_word'],
+        'painter_word': room['painter_word'],
+        'spy_word': room['spy_word'],
         'votes': vote_details,
         'scores': scores,
     }, to=code)
@@ -350,10 +372,9 @@ def on_sp_create(data):
         'round': 0,
         'spy_idx': None,
         'spy_history': [],
-        'suggested_words': [],
-        'word_votes': {},
+        'painter_word': None,
+        'spy_word': None,
         'chosen_word': None,
-        'rejected_words': [],
         'draw_order': [],
         'current_draw_pos': 0,
         'drawings': [],
@@ -416,6 +437,17 @@ def on_sp_start():
     sp_start_round(code, room)
 
 
+@socketio.on('sp_start_drawing_now')
+def on_sp_start_drawing_now():
+    sid = request.sid
+    code, room = sp_get_room(sid)
+    if not room or room['phase'] != 'word_reveal':
+        return
+    if room['host_sid'] != sid:
+        return emit('sp_error', {'msg': 'Only host can start drawing'})
+    sp_start_drawing(code, room)
+
+
 @socketio.on('sp_suggest_word')
 def on_sp_suggest(data):
     sid = request.sid
@@ -470,9 +502,7 @@ def on_sp_vote(data):
         room['rejected_words'] = [w['word'] for i, w in
                                    enumerate(room['suggested_words'])
                                    if i != winner_idx]
-        room['rejected_words'] = [w['word'] for i, w in
-                                  enumerate(room['suggested_words'])
-                                  if True]
+
         for i, p in enumerate(room['players']):
             if i == room['spy_idx']:
                 emit('sp_word_result', {
